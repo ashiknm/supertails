@@ -3,6 +3,9 @@
     "name": "my-expo-app",
     "slug": "my-expo-app",
     "version": "1.0.0",
+    "scheme": "supertails",
+    "newArchEnabled": true,
+    
 
     "web": {
       "favicon": "./assets/favicon.png"
@@ -26,7 +29,10 @@
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeF"
+      }
     },
     "android": {
       "adaptiveIcon": {
