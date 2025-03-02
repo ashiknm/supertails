@@ -27,7 +27,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ashikagumbe.supertails",
       "config": {
-        "googleMapsApiKey": "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeF"
+        "googleMapsApiKey": "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeFHzN8"
       }
     },
     "android": {
@@ -38,7 +38,7 @@
       "package": "com.ashikagumbe.supertails",
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeF"
+          "apiKey": "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeFHzN8"
         }
       },
       "permissions": [

@@ -12,7 +12,6 @@ import { useRouter, useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch } from "react-redux";
-import 'react-native-get-random-values';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {calculateDistance} from "lib/utils";
 
@@ -110,7 +109,7 @@ export default function SearchScreen() {
               description: prediction.description,
               place_id: prediction.place_id,
               coordinates,
-              distance: distance || ""// Fallback to random if we couldn't get real distance
+              distance: distance || ""
             };
           })
         );
