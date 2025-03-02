@@ -92,7 +92,6 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) =>
       setReceiverPhone(selectedAddress.details.receiverPhone || "");
       setPetName(selectedAddress.details.petName || "");
     }
-    console.log("selected address", selectedAddress)
   }, [visible, selectedAddress]);
 
   const handleSaveAddress = async () => {

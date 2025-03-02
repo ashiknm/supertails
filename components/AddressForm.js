@@ -14,6 +14,8 @@ import { useDispatch } from 'react-redux';
 import {saveAddress} from "../redux/actions";
 import BottomButton from './BottomButton';
 
+import { GOOGLE_PLACES_API_KEY } from '@env';
+
 const AddressFormScreen = ({ navigation }) => {
     const dispatch = useDispatch();
   const [formData, setFormData] = useState({
@@ -52,7 +54,7 @@ const AddressFormScreen = ({ navigation }) => {
     }));
   };
 
-  const GOOGLE_PLACES_API_KEY = "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeFHzN8";
+
 
   // Function to get coordinates from address components
 const getCoordinatesFromAddress = async (pincode, city, state) => {
@@ -99,7 +101,6 @@ const getCoordinatesFromAddress = async (pincode, city, state) => {
     getCoordinatesFromAddress(formData.pincode, formData.city, formData.state)
       .then((location) => {
         if (location) {
-            console.log("locationnnn", location)
             const updatedAddress = {
                 pinCode: formData.pincode,
                 city: formData.city,
@@ -121,7 +122,6 @@ const getCoordinatesFromAddress = async (pincode, city, state) => {
               };
               // Save to Redux
               dispatch(saveAddress(updatedAddress, updatedReceiver, updatedPet));
-            console.log('Form submitted:', formData);
         }});
    
     // Navigate back or to next screen

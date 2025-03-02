@@ -24,8 +24,6 @@ export default function IndexScreen() {
     };
 
     checkLocationPermission();
-
-    console.log("savedAddresses", savedAddresses);
   }, []);
 
   useFocusEffect(
@@ -66,7 +64,6 @@ export default function IndexScreen() {
 
   const handleSelectAddress = (address) => {
     // Store selected address in AsyncStorage for use in next screen
-    console.log("addrssssss", address)
     const selectedAddress = {
       location: { latitude: address.latitude, longitude: address.longitude },
       formattedAddress: address.formattedAddress,

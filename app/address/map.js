@@ -14,7 +14,7 @@ import BottomButton from "components/BottomButton";
 import {handleChangeAddress} from "lib/utils";
 import LocationNamePlate from "components/LocationNamePlate";
 
-const GOOGLE_PLACES_API_KEY = "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeFHzN8";
+import { GOOGLE_PLACES_API_KEY } from '@env';
 
 export default function MapScreen() {
   const router = useRouter();
@@ -32,7 +32,6 @@ export default function MapScreen() {
   const [showEnableLocationSuccess, setShowEnableLocationSuccess] = useState(false);
 
   const [showDetailsSheet, setShowDetailsSheet] = useState(false);
-  const { savedAddresses } = useSelector((state) => state.address);
 
   // Map view animation reference (to be used by MapScreen)
   const mapAnimatedValue = useRef(new Animated.Value(0)).current;
@@ -80,7 +79,6 @@ export default function MapScreen() {
     };
 
     loadSelectedAddress();
-    console.log("savedAddresses", savedAddresses);
   }, []);
 
   useEffect(() => {
@@ -378,7 +376,6 @@ export default function MapScreen() {
               initialRegion={region}
               onRegionChangeComplete={handleRegionChangeComplete}
               onMapReady={() => {
-                console.log("Map is ready");
                 setMapReady(true);
               }}
               showsUserLocation={locationPermission === 'granted'}

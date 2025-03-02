@@ -15,7 +15,7 @@ const fetchSavedAddresses = createAsyncThunk(
 );
 
 const addAddress = createAsyncThunk(
-  'address/addSaved',
+  'address/addSavedAddress',
   async (address, { getState, rejectWithValue }) => {
     try {
       const newAddress = { ...address, id: Date.now().toString() };

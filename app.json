@@ -1,35 +1,31 @@
 {
   "expo": {
-    "name": "my-expo-app",
+    "name": "Supertails",
     "slug": "my-expo-app",
     "version": "1.0.0",
     "scheme": "supertails",
     "newArchEnabled": true,
-    
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "experiments": {
       "tsconfigPaths": true
     },
-
     "plugins": [],
-
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-
     "userInterfaceStyle": "light",
-
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.ashikagumbe.supertails",
       "config": {
         "googleMapsApiKey": "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeF"
       }
@@ -38,6 +34,22 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
+      },
+      "package": "com.ashikagumbe.supertails",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeF"
+        }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+    "ACCESS_FINE_LOCATION",
+    "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1fcc4ddd-3172-4da0-aeb7-4b443e36b794"
       }
     }
   }

@@ -23,7 +23,7 @@ import LocationPermission from "components/LocationPermission";
 import SearchBar from "components/SearchBar";
 
 // Update with your actual API key
-const GOOGLE_PLACES_API_KEY = "AIzaSyBq0x2RdOqkM2Z4eHkoLkGCz0V8zeFHzN8";
+import { GOOGLE_PLACES_API_KEY } from '@env';
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -243,7 +243,6 @@ export default function SearchScreen() {
 
   const handleAddressFormSubmit = (formData) => {
     // Handle the submitted form data - you might want to save it to AsyncStorage or dispatch to Redux
-    console.log("Address form data:", formData);
     
     // Example implementation:
     const selectedAddress = {
