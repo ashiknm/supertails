@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, TouchableOpacity, StatusBar, SafeAreaView, StyleSheet, ActivityIndicator, FlatList } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -7,13 +7,14 @@ import * as Location from "expo-location";
 import { useSelector } from "react-redux";
 import BottomButton from "components/BottomButton";
 import { useDispatch } from "react-redux";
-import { setSelectedAddress, fetchSavedAddresses } from "redux/slices/addressSlice";
-
+import { setSelectedAddress, fetchSavedAddresses, removeAddress, fetchSavedDefaultId } from "redux/slices/addressSlice";
+import {fetchPets} from "redux/slices/petSlice"
+import {fetchReceivers} from "redux/slices/receiverSlice"
 export default function IndexScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
   const [locationPermission, setLocationPermission] = useState(null);
-  const { savedAddresses, loading } = useSelector((state) => state.address);
+  const { savedAddresses, loading, defaultId } = useSelector((state) => state.address);
 
 
 
@@ -26,15 +27,93 @@ export default function IndexScreen() {
     checkLocationPermission();
   }, []);
 
-  useFocusEffect(
-      useCallback(() => {
-        dispatch(fetchSavedAddresses())
-      }, [dispatch])
-    );
+  const handleDeleteAddress = (addressId) => {
+    dispatch(removeAddress(addressId))
+      .then(() => {
+        // Optional: Handle success (e.g., show toast notification)
+        console.log('Address deleted successfully');
+      })
+      .catch((error) => {
+        // Optional: Handle error
+        console.error('Failed to delete address:', error);
+      });
+  };
 
-  useEffect(() => {
-    dispatch(fetchSavedAddresses())
-  }, [dispatch]);
+  const lastFetchTimeRef = useRef(0);
+const FETCH_COOLDOWN = 300; // milliseconds
+
+const fetchAllData = useCallback(() => {
+  const now = Date.now();
+  
+  // Only fetch if sufficient time has passed since last fetch
+  if (now - lastFetchTimeRef.current > FETCH_COOLDOWN) {
+    console.log('Fetching data from storage...');
+    dispatch(fetchSavedAddresses());
+    dispatch(fetchPets());
+    dispatch(fetchReceivers());
+    dispatch(fetchSavedDefaultId());
+    
+    lastFetchTimeRef.current = now;
+  }
+}, [dispatch]);
+
+// On component mount
+useEffect(() => {
+  fetchAllData();
+}, [fetchAllData]);
+
+// When screen comes into focus
+useFocusEffect(
+  useCallback(() => {
+    fetchAllData();
+    return () => {
+    };
+  }, [fetchAllData])
+);
+
+  const getAddressTypeIcon = (type) => {
+    switch(type?.toLowerCase()) {
+      case 'home':
+        return 'home-outline';
+      case 'office':
+      case 'work':
+        return 'business-outline';
+      default:
+        return 'location-outline';
+    }
+  };
+
+  const getFormattedSubtitle = (address) => {
+    // For map-added addresses\
+    const isFromMap = Boolean(address.roadName || address.landmark || address.area || address.colony);
+    if (isFromMap) {
+      const parts = [];
+      if (address.houseFlatNo) parts.push(`#${address.houseFlatNo}`);
+      if (address.buildingNo) parts.push(address.buildingNo);
+      if (address.roadName) parts.push(address.roadName);
+      if (address.landmark) parts.push(`Near ${address.landmark}`);
+      if (address.area || address.colony) parts.push([address.area, address.colony].filter(Boolean).join(', '));
+      
+      return parts.join(', ');
+    }
+    const parts = [];
+    if (address.houseFlatNo) parts.push(`Flat #${address.houseFlatNo}`);
+    if (address.buildingNo) parts.push(address.buildingNo);
+    
+    // If we have structured info, use it
+    if (parts.length > 0) {
+      return parts.join(', ');
+    }
+    
+    // If formattedAddress and fullAddress are different, show fullAddress
+    if (address.fullAddress && address.formattedAddress !== address.fullAddress) {
+      return address.fullAddress;
+    }
+    
+    // Otherwise, don't show duplicate info (return empty to hide subtitle)
+    return '';
+  }
+
 
 
   const handleAddNewAddress = async () => {
@@ -62,9 +141,9 @@ export default function IndexScreen() {
     }
   };
 
-  const handleSelectAddress = (address) => {
-    // Store selected address in AsyncStorage for use in next screen
+  const handleSelectAddress = async (address) => {
     const selectedAddress = {
+      id : address.id,
       location: { latitude: address.latitude, longitude: address.longitude },
       formattedAddress: address.formattedAddress,
       fullAddress: address.fullAddress,
@@ -75,28 +154,81 @@ export default function IndexScreen() {
       },
       source: 'search'
     };
-    dispatch(setSelectedAddress(selectedAddress));
-    router.push("/address/map");
+    await AsyncStorage.setItem('selectedAddress', JSON.stringify(selectedAddress));
+    // dispatch(setSelectedAddress(selectedAddress));
+    router.push({
+      pathname: "/address/map",
+      params: { 
+        isCurrentLocation: false,
+        isEditAddress : true,
+        addressId : address.id
+      }
+    });
   };
 
   // Render saved address item
-  const renderAddressItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.addressItem} 
+  const renderAddressItem = ({ item }) => {
+    const subtitleText = getFormattedSubtitle(item);
+    const isDefaultAddress = item.id === defaultId;
+    console.log("defaultId", defaultId)
+    return(
+      <TouchableOpacity 
+      style={[
+        styles.addressContent, 
+        isDefaultAddress && styles.defaultAddressContainer
+      ]} 
       onPress={() => handleSelectAddress(item)}
     >
-      <View style={styles.addressIconContainer}>
-        <Ionicons name="location" size={24} color="#E18336" />
+      <View style={styles.iconContainer}>
+        <Ionicons 
+          name={getAddressTypeIcon(item.addressType)} 
+          size={22} 
+          color="#E18336"
+        />
       </View>
-      <View style={styles.addressDetails}>
-        <Text style={styles.addressName}>{item.formattedAddress}</Text>
-        <Text style={styles.addressText} numberOfLines={1}>
-          {item.fullAddress}
-        </Text>
+      
+      <View style={styles.textContainer}>
+        <View style={styles.headerRow}>
+          {subtitleText ? (
+            <Text 
+              style={[
+                styles.subtitle, 
+              ]} 
+              numberOfLines={1}
+            >
+              {subtitleText}
+            </Text>
+          ) : null}
+          <Text 
+            style={[
+              styles.title, 
+            ]} 
+            numberOfLines={1}
+          >
+            {item.formattedAddress}
+          </Text>
+        </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+      
+      {isDefaultAddress && (
+        <View style={styles.defaultBadge}>
+          <Text style={styles.defaultBadgeText}>Default</Text>
+        </View>
+      )}
+      
+      <TouchableOpacity 
+        style={styles.deleteButton}
+        onPress={() => handleDeleteAddress(item.id)}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons 
+          name="trash-outline" 
+          size={18} 
+          color= "#EF4444"
+        />
+      </TouchableOpacity>
     </TouchableOpacity>
-  );
+)};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -142,6 +274,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F5F6FB" // Light background color matching the design
+  },
+  addressContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  iconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FEF3EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  textContainer: {
+    flex: 1,
+    marginRight: 8,
   },
   contentContainer: {
     flex: 1,
@@ -233,5 +383,29 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "500"
+  },
+  defaultAddressContainer: {
+    borderColor: '#E18336', // Orange background for default address
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  defaultAddressTitle: {
+    color: '#FFFFFF', // White text for default address
+    fontWeight: '600',
+  },
+  defaultAddressSubtitle: {
+    color: 'rgba(255, 255, 255, 0.7)', // Slightly transparent white
+  },
+  defaultBadge: {
+    backgroundColor: '#E18336', // Translucent white background
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginRight: 10,
+  },
+  defaultBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '500',
   }
 });

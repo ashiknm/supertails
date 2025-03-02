@@ -18,7 +18,7 @@ const addAddress = createAsyncThunk(
   'address/addSavedAddress',
   async (address, { getState, rejectWithValue }) => {
     try {
-      const newAddress = { ...address, id: Date.now().toString() };
+      const newAddress = { ...address };
       const { address: addressState } = getState();
       const updatedAddresses = [...addressState.savedAddresses, newAddress];
       
@@ -32,8 +32,84 @@ const addAddress = createAsyncThunk(
   }
 );
 
+const removeAddress = createAsyncThunk(
+  'address/removeAddress',
+  async (addressId, { getState, rejectWithValue }) => {
+    try {
+      const { address: addressState } = getState();
+      const updatedAddresses = addressState.savedAddresses.filter(
+        address => address.id !== addressId
+      );
+      
+      // Save updated list to AsyncStorage
+      await AsyncStorage.setItem('savedAddresses', JSON.stringify(updatedAddresses));
+      
+      return addressId;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// Async thunk to set default address
+const setDefaultAddressAsync = createAsyncThunk(
+  'address/setDefaultAddressAsync',
+  async (addressId, { dispatch }) => {
+    try {
+      // Convert to string explicitly
+      await AsyncStorage.setItem('defaultId', JSON.stringify(addressId));
+      
+      // Update Redux state using the existing action
+      dispatch(setDefaultAddress(addressId));
+      
+      return addressId;
+    } catch (error) {
+      console.error('Error setting default address:', error);
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+const fetchSavedDefaultId = createAsyncThunk(
+  'address/fetchSavedDefault',
+  async (_, { rejectWithValue }) => {
+    try {
+      const defaultId = await AsyncStorage.getItem('defaultId');
+      
+      // Explicitly parse and handle null/undefined cases
+      if (defaultId) {
+        return JSON.parse(defaultId);
+      }
+      
+      return ''; // Return empty string if no default found
+    } catch (error) {
+      console.error('Error fetching default address:', error);
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+const updateAddress = createAsyncThunk(
+  'address/updateAddress',
+  async (updatedAddress, { getState, rejectWithValue }) => {
+    try {
+      const { address: addressState } = getState();
+      const updatedAddresses = addressState.savedAddresses.map(address => 
+        address.id === updatedAddress.id ? updatedAddress : address
+      );
+      
+      // Save updated list to AsyncStorage
+      await AsyncStorage.setItem('savedAddresses', JSON.stringify(updatedAddresses));
+      
+      return updatedAddress;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 const initialState = {
-  savedAddresses: [],  // Initialize as empty array, not with AsyncStorage.getItem()
+  savedAddresses: [], 
   loading: false,
   error: null,
   defaultId: null,
@@ -46,6 +122,7 @@ const initialState = {
     state: '',
     houseFlatNo: '',
     buildingNo: '',
+    buildingName : '',
     roadName: '',
     area: '',
     isDefault: false,
@@ -68,7 +145,7 @@ const addressSlice = createSlice({
   initialState,
   reducers: {
     addSavedAddress: (state, action) => {
-      const newAddress = { ...action.payload, id: Date.now().toString() };
+      const newAddress = { ...action.payload };
       state.savedAddresses.push(newAddress);
       // Don't do AsyncStorage operations in reducers
       // Move this to an async thunk or middleware
@@ -96,6 +173,24 @@ const addressSlice = createSlice({
     clearCurrentAddress: (state) => {
       state.currentAddress = initialState.currentAddress;
     },
+    // Add these to your reducers section
+  removeSavedAddress: (state, action) => {
+    state.savedAddresses = state.savedAddresses.filter(
+      address => address.id !== action.payload
+    );
+    // If we're removing the default address, clear the defaultId
+    if (state.defaultId === action.payload) {
+      state.defaultId = null;
+    }
+  },
+  updateSavedAddress: (state, action) => {
+    const index = state.savedAddresses.findIndex(
+      address => address.id === action.payload.id
+    );
+    if (index !== -1) {
+      state.savedAddresses[index] = action.payload;
+    }
+  },
   },
   extraReducers: (builder) => {
     builder
@@ -125,7 +220,54 @@ const addressSlice = createSlice({
       .addCase(addAddress.rejected, (state, action) => {
         state.error = action.payload;
         state.loading = false;
+      })
+
+      .addCase(removeAddress.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(removeAddress.fulfilled, (state, action) => {
+        state.savedAddresses = state.savedAddresses.filter(
+          address => address.id !== action.payload
+        );
+        // If we're removing the default address, clear the defaultId
+        if (state.defaultId === action.payload) {
+          state.defaultId = null;
+        }
+        state.loading = false;
+      })
+      .addCase(removeAddress.rejected, (state, action) => {
+        state.error = action.payload;
+        state.loading = false;
+      })
+
+      .addCase(updateAddress.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateAddress.fulfilled, (state, action) => {
+        const index = state.savedAddresses.findIndex(
+          address => address.id === action.payload.id
+        );
+        if (index !== -1) {
+          state.savedAddresses[index] = action.payload;
+        }
+        state.loading = false;
+      })
+      .addCase(updateAddress.rejected, (state, action) => {
+        state.error = action.payload;
+        state.loading = false;
+      })
+
+      builder
+      .addCase(fetchSavedDefaultId.fulfilled, (state, action) => {
+        state.defaultId = action.payload;
+      })
+      .addCase(setDefaultAddressAsync.fulfilled, (state, action) => {
+        state.defaultId = action.payload;
       });
+
+      
   }
 });
 
@@ -139,6 +281,8 @@ const {
   setCurrentAddress,
   clearCurrentAddress,
   setSelectedAddress,
+  removeSavedAddress,
+  updateSavedAddress
 } = addressSlice.actions;
 
 // Export reducer as default
@@ -156,3 +300,9 @@ module.exports.clearSearch = clearSearch;
 module.exports.setCurrentAddress = setCurrentAddress;
 module.exports.clearCurrentAddress = clearCurrentAddress;
 module.exports.setSelectedAddress = setSelectedAddress;
+module.exports.removeAddress = removeAddress;
+module.exports.updateAddress = updateAddress;
+module.exports.removeSavedAddress = removeSavedAddress;
+module.exports.updateSavedAddress = updateSavedAddress;
+module.exports.setDefaultAddressAsync = setDefaultAddressAsync;
+module.exports.fetchSavedDefaultId = fetchSavedDefaultId;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,24 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
-  SafeAreaView
+  SafeAreaView,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
-import {saveAddress} from "../redux/actions";
+import { saveAddress } from "../redux/actions";
+import { setSelectedAddress } from "../redux/slices/addressSlice";
 import BottomButton from './BottomButton';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 
 import { GOOGLE_PLACES_API_KEY } from '@env';
 
-const AddressFormScreen = ({ navigation }) => {
-    const dispatch = useDispatch();
+const AddressFormScreen = () => {
+  const dispatch = useDispatch();
+  const router = useRouter();
+  
   const [formData, setFormData] = useState({
     pincode: '',
     city: '',
@@ -28,11 +35,11 @@ const AddressFormScreen = ({ navigation }) => {
     mobile: '',
     petName: '',
     defaultAddress: true,
-    addressType : "",
-    buildingName:"",
-    area : "",
-    colony : "",
-    houseFlatNo: "", // Map houseFlat to houseFlatNo
+    addressType: "home",
+    buildingName: "",
+    area: "",
+    colony: "",
+    houseFlatNo: "", 
     buildingNo: "",
     roadName: "",
     landmark: "",
@@ -40,11 +47,113 @@ const AddressFormScreen = ({ navigation }) => {
     longitude: "",
   });
 
+  // Form errors state
+  const [errors, setErrors] = useState({});
+  
+  // Loading states
+  const [isPincodeLoading, setIsPincodeLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Handle input changes
   const handleChange = (name, value) => {
+    // Clear the error for this field when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    
+    // Special handling for pincode
+    if (name === 'pincode') {
+      // Only allow numeric input
+      if (value !== '' && !/^\d+$/.test(value)) {
+        return; // Ignore non-numeric input
+      }
+      
+      // Clear city and state if pincode is cleared
+      if (value === '') {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          city: '',
+          state: ''
+        }));
+        return;
+      }
+      
+      // If pincode is 6 digits, fetch city and state
+      if (value.length === 6) {
+        fetchLocationFromPincode(value);
+      }
+    }
+    
+    // Special handling for mobile, building and houseFlat
+    if (['mobile', 'building', 'houseFlat'].includes(name)) {
+      // Only allow numeric input for these fields
+      if (value !== '' && !/^\d+$/.test(value)) {
+        return; // Ignore non-numeric input
+      }
+    }
+    
+    // Update the form data
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+  };
+
+  // Fetch city and state from pincode
+  const fetchLocationFromPincode = async (pincode) => {
+    try {
+      setIsPincodeLoading(true);
+      setErrors(prev => ({ ...prev, pincode: '' }));
+      
+      // API URL for pincode lookup
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${pincode}&components=country:IN&key=${GOOGLE_PLACES_API_KEY}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        // Extract city and state from address components
+        const addressComponents = data.results[0].address_components;
+        let city = '';
+        let state = '';
+        
+        addressComponents.forEach(component => {
+          if (component.types.includes('locality') || component.types.includes('administrative_area_level_2')) {
+            city = component.long_name;
+          }
+          if (component.types.includes('administrative_area_level_1')) {
+            state = component.long_name;
+          }
+        });
+        
+        if (city && state) {
+          setFormData(prev => ({
+            ...prev,
+            city,
+            state
+          }));
+        } else {
+          setErrors(prev => ({ 
+            ...prev, 
+            pincode: 'Could not find location details for this PIN code' 
+          }));
+        }
+      } else {
+        setErrors(prev => ({ 
+          ...prev, 
+          pincode: 'Invalid PIN code' 
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching location from pincode:', error);
+      setErrors(prev => ({ 
+        ...prev, 
+        pincode: 'Error fetching location data' 
+      }));
+    } finally {
+      setIsPincodeLoading(false);
+    }
   };
 
   const toggleDefaultAddress = () => {
@@ -54,10 +163,8 @@ const AddressFormScreen = ({ navigation }) => {
     }));
   };
 
-
-
   // Function to get coordinates from address components
-const getCoordinatesFromAddress = async (pincode, city, state) => {
+  const getCoordinatesFromAddress = async (pincode, city, state) => {
     try {
       // Format the address string
       const addressString = `${pincode}, ${city}, ${state}`;
@@ -90,103 +197,238 @@ const getCoordinatesFromAddress = async (pincode, city, state) => {
     }
   };
 
-  const handleSubmit = () => {
-    // Basic validation
-    if (!formData.pincode || !formData.city || !formData.houseFlat || !formData.name || !formData.mobile) {
-      // You could add proper validation UI here
-      alert('Please fill all required fields');
+  // Validate form before submission
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Validate Pincode
+    if (!formData.pincode) {
+      newErrors.pincode = 'PIN code is required';
+    } else if (!/^\d{6}$/.test(formData.pincode)) {
+      newErrors.pincode = 'PIN code must be 6 digits';
+    }
+    
+    // Validate City and State
+    if (!formData.city) newErrors.city = 'City is required';
+    if (!formData.state) newErrors.state = 'State is required';
+    
+    // Validate House/Flat number
+    if (!formData.houseFlat) {
+      newErrors.houseFlat = 'House/Flat number is required';
+    } else if (!/^\d+$/.test(formData.houseFlat)) {
+      newErrors.houseFlat = 'House/Flat number must contain only digits';
+    }
+    
+    // Validate Building number if provided
+    if (formData.building && !/^\d+$/.test(formData.building)) {
+      newErrors.building = 'Building number must contain only digits';
+    }
+    
+    // Validate Receiver's details
+    if (!formData.name) {
+      newErrors.name = 'Name is required';
+    }
+    
+    if (!formData.mobile) {
+      newErrors.mobile = 'Mobile number is required';
+    } else if (!/^\d{10}$/.test(formData.mobile)) {
+      newErrors.mobile = 'Enter a valid 10-digit mobile number';
+    }
+    
+    if (!formData.petName) {
+      newErrors.petName = 'Pet name is required';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) {
+      // Scroll to the first error field (you'd need to implement this)
+      Alert.alert('Form Error', 'Please fix the errors in the form before submitting');
       return;
     }
 
-    getCoordinatesFromAddress(formData.pincode, formData.city, formData.state)
-      .then((location) => {
-        if (location) {
-            const updatedAddress = {
-                pinCode: formData.pincode,
-                city: formData.city,
-                houseFlatNo: formData.houseFlat, // Map houseFlat to houseFlatNo
-                buildingNo: formData.buildingNo,
-                latitude: location.latitude,
-                longitude: location.longitude,
-                formattedAddress: location.formattedAddress,
-                placeId: location.placeId,
-              };
-          
-              const updatedReceiver = {
-                name: formData.name,
-                phoneNumber: formData.mobile, // Map mobile to phoneNumber
-              };
-          
-              const updatedPet = {
-                name: formData.petName,
-              };
-              // Save to Redux
-              dispatch(saveAddress(updatedAddress, updatedReceiver, updatedPet));
-        }});
-   
-    // Navigate back or to next screen
-  };
-
-  const handleBack = () => {
-    // Navigate back
-    navigation.goBack();
+    try {
+      setIsSubmitting(true);
+      
+      const location = await getCoordinatesFromAddress(
+        formData.pincode, 
+        formData.city, 
+        formData.state
+      );
+      
+      if (location) {
+        const updatedAddress = {
+          pinCode: formData.pincode,
+          city: formData.city,
+          state: formData.state,
+          houseFlatNo: formData.houseFlat,
+          buildingNo: formData.building,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          formattedAddress: location.formattedAddress,
+          placeId: location.placeId,
+          addressType: formData.addressType || "home",
+          defaultAddress: formData.defaultAddress
+        };
+        
+        const updatedReceiver = {
+          name: formData.name,
+          phoneNumber: formData.mobile,
+        };
+        
+        const updatedPet = {
+          name: formData.petName,
+        };
+        
+        // Save to Redux
+        await dispatch(saveAddress(updatedAddress, updatedReceiver, updatedPet));
+        
+        // Set as selected address
+        const formattedSelectedAddress = {
+          location: { 
+            latitude: location.latitude, 
+            longitude: location.longitude 
+          },
+          formattedAddress: location.formattedAddress,
+          fullAddress: location.formattedAddress,
+          details: {
+            name: formData.city, // Using city as the name
+            formatted_address: location.formattedAddress,
+            place_id: location.placeId
+          },
+          source: 'search'
+        };
+        
+        // Save to Redux and AsyncStorage
+        dispatch(setSelectedAddress(formattedSelectedAddress));
+        await AsyncStorage.setItem('selectedAddress', JSON.stringify(formattedSelectedAddress));
+        
+        // Navigate to home screen
+        router.push("/")
+      } else {
+        Alert.alert(
+          'Location Error', 
+          'Could not determine the coordinates for this address. Please check your address details.'
+        );
+      }
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      Alert.alert('Error', 'An error occurred while saving the address. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Fixed Header */}
-
       {/* Scrollable Middle Content */}
       <View style={styles.contentWrapper}>
         <ScrollView style={styles.scrollContent}>
-          {/* Location permission section */}
-         
-
           {/* Address section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Address</Text>
             <View style={styles.formContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Pincode"
-                placeholderTextColor="#9CA3AF"
-                value={formData.pincode}
-                onChangeText={(text) => handleChange('pincode', text)}
-                keyboardType="numeric"
-              />
-
-              <View style={styles.rowInputs}>
-                <TextInput
-                  style={[styles.input, styles.halfInput]}
-                  placeholder="City"
-                  placeholderTextColor="#9CA3AF"
-                  value={formData.city}
-                  onChangeText={(text) => handleChange('city', text)}
-                />
-                <TextInput
-                  style={[styles.input, styles.halfInput]}
-                  placeholder="State"
-                  placeholderTextColor="#9CA3AF"
-                  value={formData.state}
-                  onChangeText={(text) => handleChange('state', text)}
-                />
+              <View>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      errors.pincode ? styles.inputError : null
+                    ]}
+                    placeholder="Pincode * (Numbers only)"
+                    placeholderTextColor="#9CA3AF"
+                    value={formData.pincode}
+                    onChangeText={(text) => handleChange('pincode', text)}
+                    keyboardType="numeric"
+                    maxLength={6}
+                  />
+                  {isPincodeLoading && (
+                    <ActivityIndicator 
+                      size="small" 
+                      color="#D97706" 
+                      style={styles.inputIcon}
+                    />
+                  )}
+                </View>
+                {errors.pincode && (
+                  <Text style={styles.errorText}>{errors.pincode}</Text>
+                )}
               </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="House/Flat no."
-                placeholderTextColor="#9CA3AF"
-                value={formData.houseFlat}
-                onChangeText={(text) => handleChange('houseFlat', text)}
-              />
+              <View style={styles.rowInputs}>
+                <View style={{flex: 0.48}}>
+                  <TextInput
+                    style={[
+                      styles.input, 
+                      errors.city ? styles.inputError : null,
+                      {marginBottom: 0}
+                    ]}
+                    placeholder="City *"
+                    placeholderTextColor="#9CA3AF"
+                    value={formData.city}
+                    onChangeText={(text) => handleChange('city', text)}
+                    editable={false}
+                  />
+                  {errors.city && (
+                    <Text style={styles.errorText}>{errors.city}</Text>
+                  )}
+                </View>
+                
+                <View style={{flex: 0.48}}>
+                  <TextInput
+                    style={[
+                      styles.input, 
+                      errors.state ? styles.inputError : null,
+                      {marginBottom: 0}
+                    ]}
+                    placeholder="State *"
+                    placeholderTextColor="#9CA3AF"
+                    value={formData.state}
+                    onChangeText={(text) => handleChange('state', text)}
+                    editable={false}
+                  />
+                  {errors.state && (
+                    <Text style={styles.errorText}>{errors.state}</Text>
+                  )}
+                </View>
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Building no."
-                placeholderTextColor="#9CA3AF"
-                value={formData.building}
-                onChangeText={(text) => handleChange('building', text)}
-              />
+              <View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.houseFlat ? styles.inputError : null
+                  ]}
+                  placeholder="House/Flat no. * (Numbers only)"
+                  placeholderTextColor="#9CA3AF"
+                  value={formData.houseFlat}
+                  onChangeText={(text) => handleChange('houseFlat', text)}
+                  keyboardType="numeric"
+                />
+                {errors.houseFlat && (
+                  <Text style={styles.errorText}>{errors.houseFlat}</Text>
+                )}
+              </View>
+
+              <View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.building ? styles.inputError : null
+                  ]}
+                  placeholder="Building no. (Numbers only)"
+                  placeholderTextColor="#9CA3AF"
+                  value={formData.building}
+                  onChangeText={(text) => handleChange('building', text)}
+                  keyboardType="numeric"
+                />
+                {errors.building && (
+                  <Text style={styles.errorText}>{errors.building}</Text>
+                )}
+              </View>
             </View>
           </View>
 
@@ -194,39 +436,62 @@ const getCoordinatesFromAddress = async (pincode, city, state) => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Receiver's details</Text>
             <View style={styles.formContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Your name"
-                placeholderTextColor="#9CA3AF"
-                value={formData.name}
-                onChangeText={(text) => handleChange('name', text)}
-              />
+              <View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.name ? styles.inputError : null
+                  ]}
+                  placeholder="Your name *"
+                  placeholderTextColor="#9CA3AF"
+                  value={formData.name}
+                  onChangeText={(text) => handleChange('name', text)}
+                />
+                {errors.name && (
+                  <Text style={styles.errorText}>{errors.name}</Text>
+                )}
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Your mobile no."
-                placeholderTextColor="#9CA3AF"
-                value={formData.mobile}
-                onChangeText={(text) => handleChange('mobile', text)}
-                keyboardType="phone-pad"
-              />
+              <View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.mobile ? styles.inputError : null
+                  ]}
+                  placeholder="Your mobile no. * (10 digits)"
+                  placeholderTextColor="#9CA3AF"
+                  value={formData.mobile}
+                  onChangeText={(text) => handleChange('mobile', text)}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+                {errors.mobile && (
+                  <Text style={styles.errorText}>{errors.mobile}</Text>
+                )}
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Your pet's name"
-                placeholderTextColor="#9CA3AF"
-                value={formData.petName}
-                onChangeText={(text) => handleChange('petName', text)}
-              />
+              <View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.petName ? styles.inputError : null
+                  ]}
+                  placeholder="Your pet's name *"
+                  placeholderTextColor="#9CA3AF"
+                  value={formData.petName}
+                  onChangeText={(text) => handleChange('petName', text)}
+                />
+                {errors.petName && (
+                  <Text style={styles.errorText}>{errors.petName}</Text>
+                )}
+              </View>
             </View>
           </View>
           
           {/* Add padding at the bottom to ensure content isn't hidden behind footer */}
-       
+          <View style={{height: 20}} />
         </ScrollView>
-    
       </View>
-     
 
       {/* Fixed Footer */}
       <View style={styles.footer}>
@@ -248,7 +513,12 @@ const getCoordinatesFromAddress = async (pincode, city, state) => {
         </TouchableOpacity>
 
         {/* Submit button */}
-        <BottomButton title="Save Address" onPress={handleSubmit} />
+        <BottomButton 
+          title="Save Address" 
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+          loading={isSubmitting}
+        />
       </View>
     </SafeAreaView>
   );
@@ -261,12 +531,10 @@ const styles = StyleSheet.create({
   },
   contentWrapper: {
     flex: 1, 
-    
   },
   scrollContent: { 
     flex: 1, 
   },
-
   section: {
     marginTop: 24,
   },
@@ -294,6 +562,9 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  inputWrapper: {
+    position: 'relative',
+  },
   input: {
     backgroundColor: 'white',
     borderWidth: 1,
@@ -314,6 +585,21 @@ const styles = StyleSheet.create({
         elevation: 1,
       },
     }),
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  inputIcon: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   rowInputs: {
     flexDirection: 'row',

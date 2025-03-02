@@ -11,5 +11,9 @@ export const store = configureStore({
     pet: petReducer,
     location: locationReducer,
   },
-  middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),
+  middleware: (getDefaultMiddleware) => getDefaultMiddleware({ 
+    serializableCheck: false,
+    // This allows for handling promises in your action creators
+    immutableCheck: false 
+  }),
 });

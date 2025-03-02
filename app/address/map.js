@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet , Animated} from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +20,7 @@ export default function MapScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const mapRef = useRef(null);
+  const params = useLocalSearchParams();
   
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [locationPermission, setLocationPermission] = useState(null);
@@ -32,10 +33,11 @@ export default function MapScreen() {
   const [showEnableLocationSuccess, setShowEnableLocationSuccess] = useState(false);
 
   const [showDetailsSheet, setShowDetailsSheet] = useState(false);
-
+  const [addressId, setAddressId] = useState(0);
+  const [isEditAddrerss, setIsEditAddress] = useState(false);
   // Map view animation reference (to be used by MapScreen)
   const mapAnimatedValue = useRef(new Animated.Value(0)).current;
-  
+  const pets = useSelector(state => state.pet.pets);
   useEffect(() => {
     const loadSelectedAddress = async () => {
       try {
@@ -77,60 +79,19 @@ export default function MapScreen() {
         setIsLoading(false);
       }
     };
-
     loadSelectedAddress();
   }, []);
+ 
+
 
   useEffect(() => {
-    const handleUseCurrentLocation = async () => {
-        try {
-          setMapReady(false);
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          const { latitude, longitude } = location.coords;
-          
-          // Get address from coordinates
-          const response = await Location.reverseGeocodeAsync({
-            latitude,
-            longitude
-          });
-          
-          if (response && response.length > 0) {
-            const address = response[0];
-            const name = address.name || address.street || 'Current Location';
-            const formattedAddress = name;
-            const fullAddress = `${address.street || ''}, ${address.city || ''}, ${address.region || ''} ${address.postalCode || ''}`.trim();
-            
-            // Save to AsyncStorage
-            const selectedAddress = {
-              location: { latitude, longitude },
-              formattedAddress,
-              fullAddress,
-              details: address,
-              source: 'device'
-            };
-
-            
-            setSelectedAddress(selectedAddress);
-            
-            await AsyncStorage.setItem('selectedAddress', JSON.stringify(selectedAddress));
-            
-            // When you create your Redux slice, uncomment this:
-            // dispatch(setSelectedAddress(selectedAddress));
-            
-          }
-        } catch (error) {
-          console.error("Error getting current location:", error);
-        } finally {
-            setMapReady(true);
-        }
-      };
-      if(router.params?.isCurrentLocation) {
-        handleUseCurrentLocation();
+      if(params?.isEditAddress === 'true'){
+        setIsEditAddress(true)
       }
-  }, [router.params])
-  
+      if(params.addressId){
+        setAddressId(params.addressId)
+      }
+  }, [params])
 
 
   const handleUseCurrentLocation = async () => {
@@ -230,17 +191,6 @@ export default function MapScreen() {
 
 
   const handleAddMoreDetails = () => {
-    if (!selectedAddress) {
-      // If no address is selected yet, prompt user to enable location or search
-      if (locationPermission !== 'granted') {
-        handleEnableLocation();
-      } else {
-        handleUseCurrentLocation();
-      }
-      return;
-    }
-    
-    // Show the address details sheet
     setShowDetailsSheet(true);
   };
   // Function to animate to selected location when map becomes ready
@@ -460,19 +410,20 @@ export default function MapScreen() {
     />
 
     <BottomButton 
-            title="Add more address details"
+             title={isEditAddrerss ? "Update address details" : "Add more address details"}
             onPress={handleAddMoreDetails}
           />
   </View>
 )}
 
-      {/* Address Details Sheet */}
       <BottomSheet
-  visible={showDetailsSheet}
-  onClose={() => setShowDetailsSheet(false)}
-  selectedAddress={selectedAddress}
-  mapAnimatedValue={mapAnimatedValue}
-/>
+    visible={showDetailsSheet}
+    onClose={() => setShowDetailsSheet(false)}
+    selectedAddress={selectedAddress}
+    mapAnimatedValue={mapAnimatedValue}
+    isEditAddrerss={isEditAddrerss}
+    addressId={addressId}
+  />
     </View>
 </Animated.View>
   

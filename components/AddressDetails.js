@@ -9,13 +9,15 @@ import {
   ScrollView,
   Dimensions,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Alert
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useDispatch } from "react-redux";
-import { saveAddress } from "../redux/actions";
+import { saveAddress, updateCompleteAddress, getAddressWithDetails } from "../redux/actions";
 import { useRouter } from "expo-router";
+import { useSelector } from "react-redux";
 import BottomButton from "./BottomButton";
 import LocationNamePlate from "./LocationNamePlate";
 import { handleChangeAddress } from "lib/utils";
@@ -23,7 +25,7 @@ import { handleChangeAddress } from "lib/utils";
 const windowHeight = Dimensions.get('window').height;
 const sheetHeight = windowHeight * 0.70; 
 
-const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) => {
+const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue, isEditAddrerss, addressId }) => {
 
   const getPinCode = () => selectedAddress.details.address_components.find(comp => comp.types.includes('postal_code'))?.long_name || '';
   const getCity = () => selectedAddress.details.address_components.find(comp => comp.types.includes('locality'))?.long_name || '';
@@ -44,6 +46,8 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) =>
   const [petName, setPetName] = useState("");
   const dispatch = useDispatch();
   const router = useRouter();
+  const [defaultAddress, setDefaultAddress] = useState(false);
+  const { address, receiver, pet } = useSelector(getAddressWithDetails(addressId)) || {};
   
   // Animation configuration
   const animatedValue = useRef(new Animated.Value(sheetHeight)).current;
@@ -81,24 +85,89 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) =>
     }
   }, [visible, mapAnimatedValue]);
 
+  useEffect(()=>{
+    console.log("data received", address, receiver, pet)
+    if(address){
+      setHouseNumber(address.houseFlatNo)
+    }
+   
+  },[address, receiver, pet])
+
   // Load saved address details if any
   useEffect(() => {
-    if (visible && selectedAddress?.details) {
-      setHouseNumber(selectedAddress.details.houseNumber || "");
-      setBuildingName(selectedAddress.details.buildingName || "");
-      setLandmark(selectedAddress.details.landmark || "");
-      setAddressType(selectedAddress.details.type || "office");
-      setReceiverName(selectedAddress.details.receiverName || "");
-      setReceiverPhone(selectedAddress.details.receiverPhone || "");
-      setPetName(selectedAddress.details.petName || "");
+    if (visible && address) {
+      setHouseNumber(address.houseFlatNo || "");
+      setAddressType(address.addressType || "office");
+      setBuildingName(address.buildingName || "jjj");
+      setLandmark(address.landmark || "");
+      setReceiverName(receiver.name || "");
+      setReceiverPhone(receiver.phoneNumber || "");
+      setPetName(pet.name || "");
     }
-  }, [visible, selectedAddress]);
+  }, [visible, address, receiver, pet]);
 
   const handleSaveAddress = async () => {
-    if(!houseNumber || !buildingName || !landmark || !receiverName || !receiverPhone || !petName) {
-      alert("Please fill all the fields");
-      return;
+    const trimmedHouseNumber = houseNumber.trim();
+  const trimmedBuildingName = buildingName.trim();
+  const trimmedReceiverName = receiverName.trim();
+  const trimmedReceiverPhone = receiverPhone.trim();
+  const trimmedPetName = petName.trim();
+
+  // Validation array to collect error messages
+  const errors = [];
+
+  // House Number Validation
+  if (!trimmedHouseNumber) {
+    errors.push("House No./Flat No. is required");
+  } 
+
+  // Building Name Validation
+  if (!trimmedBuildingName) {
+    errors.push("Building name is required");
+  } 
+
+  // Receiver Name Validation
+  if (!trimmedReceiverName) {
+    errors.push("Receiver's name is required");
+  } else {
+    // Basic name validation (allow letters, spaces, and some special characters)
+    const nameRegex = /^[a-zA-Z\s.'-]+$/;
+    if (!nameRegex.test(trimmedReceiverName)) {
+      errors.push("Please enter a valid name");
+    } else if (trimmedReceiverName.length < 2) {
+      errors.push("Receiver's name should be at least 2 characters long");
     }
+  }
+
+  // Phone Number Validation
+  if (!trimmedReceiverPhone) {
+    errors.push("Receiver's phone number is required");
+  } else {
+    // Validate phone number format (adjust regex as per your country's phone number format)
+    const phoneRegex = /^[6-9]\d{9}$/; // Indian mobile number format
+    if (!phoneRegex.test(trimmedReceiverPhone)) {
+      errors.push("Please enter a valid 10-digit phone number");
+    }
+  }
+
+  // Pet Name Validation
+  if (!trimmedPetName) {
+    errors.push("Pet's name is required");
+  } else if (trimmedPetName.length < 2) {
+    errors.push("Pet's name should be at least 2 characters long");
+  }
+
+  // Check if there are any errors
+  if (errors.length > 0) {
+    // Show all errors in a single alert or use a more sophisticated error display
+    Alert.alert(
+      "Validation Errors",
+      errors.join("\n"),
+      [{ text: "OK", style: "cancel" }]
+    );
+    return;
+  }
+
     try {
       if (!selectedAddress) return;
       const updatedAddress = {
@@ -106,7 +175,7 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) =>
         city: getCity(),
         state: getState(),
         houseFlatNo: houseNumber,
-        buildingNo: buildingName,
+        buildingName: buildingName,
         roadName: getRoadName(),
         area: getArea(),
         colony: '', 
@@ -117,7 +186,8 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) =>
         formattedAddress : getFormattedAddress(),
         fullAddress : getFullAddress(),
         placeName : getPlaceName(),
-        placeId : getPlaceId()
+        placeId : getPlaceId(),
+        defaultAddress : defaultAddress
       };
 
       const updatedReceiver = {
@@ -128,8 +198,28 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) =>
       const updatedPet = {
         name: petName,
       };
+      if (isEditAddrerss && address) {
+        updatedAddress.id = address.id;
+        updatedAddress.receiverId = address.receiverId;
+        updatedAddress.petId = address.petId;
+      }
+      if (isEditAddrerss && receiver) {
+        updatedReceiver.id = receiver.id;
+        updatedReceiver.petId = receiver.petId;
+      }
 
-      dispatch(saveAddress(updatedAddress, updatedReceiver, updatedPet));
+      if (isEditAddrerss && pet) {
+        updatedPet.id = pet.id;
+      }
+
+      if(isEditAddrerss){
+        dispatch(updateCompleteAddress(updatedAddress, updatedReceiver, updatedPet));
+      }else{
+        dispatch(saveAddress(updatedAddress, updatedReceiver, updatedPet));
+      }
+      
+     
+      
       onClose();
       router.push('/'); 
     } catch (error) {
@@ -138,6 +228,10 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) =>
   };
 
   if (!visible) return null;
+
+  const toggleDefaultAddress = () => {
+    setDefaultAddress(prev=>!prev)
+  };
 
   return (
     <Animated.View 
@@ -297,12 +391,30 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue }) =>
               onChangeText={setPetName}
             />
           </View>
+
+            <TouchableOpacity 
+                    style={styles.checkboxContainer}
+                    onPress={toggleDefaultAddress}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[
+                      styles.checkbox,
+                      defaultAddress && styles.checkboxChecked
+                    ]}>
+                      {defaultAddress && (
+                        <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                      )}
+                    </View>
+                    <Text style={styles.checkboxLabel}>Set as default address</Text>
+                  </TouchableOpacity>
           
           <View style={styles.spacer} />
         </ScrollView>
         
         <View style={styles.footer}>
-            <BottomButton title="Save address" onPress={handleSaveAddress} />
+            <BottomButton 
+            title={isEditAddrerss?"Update address" :"Save address"}
+            onPress={handleSaveAddress} />
         </View>
       </KeyboardAvoidingView>
     </Animated.View>
@@ -427,6 +539,29 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "500",
     fontSize: 16,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#D97706',
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#D97706',
+  },
+  checkboxLabel: {
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#1F2937',
   },
 });
 
