@@ -284,28 +284,7 @@ const AddressFormScreen = () => {
         };
         
         // Save to Redux
-        await dispatch(saveAddress(updatedAddress, updatedReceiver, updatedPet));
-        
-        // Set as selected address
-        const formattedSelectedAddress = {
-          location: { 
-            latitude: location.latitude, 
-            longitude: location.longitude 
-          },
-          formattedAddress: location.formattedAddress,
-          fullAddress: location.formattedAddress,
-          details: {
-            name: formData.city, // Using city as the name
-            formatted_address: location.formattedAddress,
-            place_id: location.placeId
-          },
-          source: 'search'
-        };
-        
-        // Save to Redux and AsyncStorage
-        dispatch(setSelectedAddress(formattedSelectedAddress));
-        await AsyncStorage.setItem('selectedAddress', JSON.stringify(formattedSelectedAddress));
-        
+        dispatch(saveAddress(updatedAddress, updatedReceiver, updatedPet));
         // Navigate to home screen
         router.push("/")
       } else {

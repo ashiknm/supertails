@@ -24,6 +24,29 @@ const addAddress = createAsyncThunk(
       
       // Save to AsyncStorage
       await AsyncStorage.setItem('savedAddresses', JSON.stringify(updatedAddresses));
+
+      console.log("new-address", newAddress)
+
+      const location = {
+        latitude: newAddress.latitude,
+        longitude: newAddress.longitude
+      };
+      
+      // Save to AsyncStorage
+      const selectedAddress = {
+        location,
+        formattedAddress: address.formattedAddress,
+        fullAddress: address.fullAddress,
+        details: {
+          name: address.placeName,
+          formatted_address: address.formattedAddress,
+          place_id: address.placeId
+        },
+        source: 'add'
+      };
+      
+      await AsyncStorage.setItem('selectedAddress', JSON.stringify(selectedAddress));
+
       
       return newAddress;
     } catch (error) {
