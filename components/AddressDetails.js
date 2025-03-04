@@ -27,11 +27,11 @@ const sheetHeight = windowHeight * 0.70;
 
 const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue, isEditAddrerss, addressId }) => {
 
-  const getPinCode = () => selectedAddress.details.address_components.find(comp => comp.types.includes('postal_code'))?.long_name || '';
-  const getCity = () => selectedAddress.details.address_components.find(comp => comp.types.includes('locality'))?.long_name || '';
-  const getState = () => selectedAddress.details.address_components.find(comp => comp.types.includes('administrative_area_level_1'))?.long_name || '';
-  const getRoadName = () => selectedAddress.details.address_components.find(comp => comp.types.includes('route'))?.long_name || selectedAddress.details.formatted_address.split(',')[0] || '';
-  const getArea = () => selectedAddress.details.address_components.find(comp => comp.types.includes('sublocality'))?.long_name || '';
+  const getPinCode = () => selectedAddress.details.address_components?.find(comp => comp.types.includes('postal_code'))?.long_name || '';
+  const getCity = () => selectedAddress.details.address_components?.find(comp => comp.types.includes('locality'))?.long_name || '';
+  const getState = () => selectedAddress.details.address_components?.find(comp => comp.types.includes('administrative_area_level_1'))?.long_name || '';
+  const getRoadName = () => selectedAddress.details.address_components?.find(comp => comp.types.includes('route'))?.long_name || selectedAddress.details.formatted_address.split(',')[0] || '';
+  const getArea = () => selectedAddress.details.address_components?.find(comp => comp.types.includes('sublocality'))?.long_name || '';
   const getFormattedAddress = () => {return selectedAddress?.details?.formatted_address || '';};
   const getFullAddress = () => selectedAddress?.fullAddress || '';
   const getPlaceName = () => selectedAddress?.formattedAddress || '';
@@ -47,10 +47,11 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue, isEd
   const dispatch = useDispatch();
   const router = useRouter();
   const [defaultAddress, setDefaultAddress] = useState(false);
-  const { address, receiver, pet } = useSelector(getAddressWithDetails(addressId)) || {};
+  const { address, receiver, pet } = addressId ? useSelector(getAddressWithDetails(addressId)) : {};
   
   // Animation configuration
   const animatedValue = useRef(new Animated.Value(sheetHeight)).current;
+
   
   useEffect(() => {
     if (visible) {

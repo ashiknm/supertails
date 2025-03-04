@@ -25,7 +25,12 @@ export default function IndexScreen() {
     };
 
     checkLocationPermission();
+    //handleResetApp();
   }, []);
+
+  const handleResetApp = async () => {
+    await AsyncStorage.clear();
+  };
 
   const handleDeleteAddress = (addressId) => {
     dispatch(removeAddress(addressId))
