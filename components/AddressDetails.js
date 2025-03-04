@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { useSelector } from "react-redux";
 import BottomButton from "./BottomButton";
 import LocationNamePlate from "./LocationNamePlate";
 import { handleChangeAddress } from "lib/utils";
+
 
 const windowHeight = Dimensions.get('window').height;
 const sheetHeight = windowHeight * 0.70; 
@@ -47,7 +48,8 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue, isEd
   const dispatch = useDispatch();
   const router = useRouter();
   const [defaultAddress, setDefaultAddress] = useState(false);
-  const { address, receiver, pet } = addressId ? useSelector(getAddressWithDetails(addressId)) : {};
+  const addressSelector = useMemo(() => getAddressWithDetails(addressId), [addressId]);
+  const { address, receiver, pet } = useSelector(addressSelector) || {};
   
   // Animation configuration
   const animatedValue = useRef(new Animated.Value(sheetHeight)).current;
@@ -135,7 +137,7 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue, isEd
     const nameRegex = /^[a-zA-Z\s.'-]+$/;
     if (!nameRegex.test(trimmedReceiverName)) {
       errors.push("Please enter a valid name");
-    } else if (trimmedReceiverName.length < 2) {
+    } else if (trimmedReceiverName?.length < 2) {
       errors.push("Receiver's name should be at least 2 characters long");
     }
   }
@@ -154,12 +156,12 @@ const BottomSheet = ({ visible, onClose, selectedAddress, mapAnimatedValue, isEd
   // Pet Name Validation
   if (!trimmedPetName) {
     errors.push("Pet's name is required");
-  } else if (trimmedPetName.length < 2) {
+  } else if (trimmedPetName?.length < 2) {
     errors.push("Pet's name should be at least 2 characters long");
   }
 
   // Check if there are any errors
-  if (errors.length > 0) {
+  if (errors?.length > 0) {
     // Show all errors in a single alert or use a more sophisticated error display
     Alert.alert(
       "Validation Errors",
